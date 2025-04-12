@@ -1,165 +1,272 @@
 from tkinter import *
 from tkinter import messagebox
 import pyodbc
+from tkinter import ttk
 
-def show(mydb): 
+def show(mydb):
     try:
         select_show = Toplevel()
-        select_show.title("Base de datos god")
+        select_show.title("Seleccionar tabla para mostrar")
         select_show.iconbitmap("codigos/assets/BDICON.ico")
-        
+
         def confirmacion():
             table_name = table_var.get()
             select_show.destroy()
             final_show(table_name)
-        
+
         mycursor = mydb.cursor()
-        mycursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE';")
-        tables = [table[0] for table in mycursor.fetchall() if 'sysdiagrams' not in table[0].lower()]
-        
+        mycursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> 'sysdiagrams'")
+        tables = [table[0] for table in mycursor.fetchall()]
+
         if not tables:
             messagebox.showerror("ERROR", "No hay tablas disponibles.")
             return
-        
+
         table_var = StringVar()
         table_var.set(tables[0])  # Set default value
-        
+
         for table in tables:
-            Radiobutton(select_show, text=table, variable=table_var, value=table).pack(anchor=W)
-        
-        connfi = Button(select_show, text="Confirmar", command=confirmacion)
-        connfi.pack()
-        
-        def final_show(table_name):
-            mycursor = mydb.cursor()
-            mycursor.execute(f"SELECT * FROM {table_name};")
-            records = mycursor.fetchall()
-            the_show = Toplevel()
-            the_show.title("Base de datos god")
-            the_show.iconbitmap("codigos/assets/BDICON.ico")
-            
-            mycursor.execute(f"""SELECT COLUMN_NAME 
-                                FROM INFORMATION_SCHEMA.COLUMNS
-                                WHERE TABLE_NAME = '{table_name}';
-                                """)
-            columns = [col[0] for col in mycursor.fetchall()]
-            m = Label(the_show, text=', '.join(columns))
-            m.pack()
-            
-            for record in records:
-                n = Label(the_show, text=record)
-                n.pack()
-    
+            Radiobutton(select_show, text=table, variable=table_var, value=table).pack(anchor=W, padx=10, pady=2)
+
+        connfi = Button(select_show, text="Mostrar Tabla", command=confirmacion)
+        connfi.pack(pady=10)
+
     except Exception as ex:
         messagebox.showerror("ERROR", f"El error es: \n{ex}")
 
-def consultar_zona_con_conteo(mydb):
-    def mostrar_resultado(zona_id):
+    def final_show(table_name):
+        the_show = Toplevel()
+        the_show.title(f"Datos de la tabla: {table_name}")
+        the_show.iconbitmap("codigos/assets/BDICON.ico")
+
         try:
-            cursor = mydb.cursor()
-            query = """
-            SELECT
-                z.ZonaID,
-                z.Nombre_Zona,
-                COUNT(a.AnimalID) AS Total_Animales
-            FROM Zonas z
-            LEFT JOIN Animales a ON z.ZonaID = a.ZonaID
-            WHERE z.ZonaID = ?
-            GROUP BY z.ZonaID, z.Nombre_Zona;
-            """
-            cursor.execute(query, (zona_id,))
-            resultado = cursor.fetchone()
+            mycursor = mydb.cursor()
+            mycursor.execute(f"SELECT * FROM {table_name};")
+            records = mycursor.fetchall()
 
-            resultado_ventana = Toplevel()
-            resultado_ventana.title("Consulta por Zona")
-            resultado_ventana.iconbitmap("codigos/assets/BDICON.ico")
+            mycursor.execute(f"""
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = '{table_name}';
+            """)
+            columns = [col[0] for col in mycursor.fetchall()]
 
-            if resultado:
-                Label(resultado_ventana, text=f"Zona ID: {resultado[0]}").pack(pady=5)
-                Label(resultado_ventana, text=f"Nombre de la Zona: {resultado[1]}").pack(pady=5)
-                Label(resultado_ventana, text=f"Total de Animales: {resultado[2]}").pack(pady=5)
-            else:
-                Label(resultado_ventana, text=f"No se encontró la Zona con ID: {zona_id}").pack(pady=10)
+            if not records:
+                Label(the_show, text=f"La tabla '{table_name}' está vacía.", padx=10, pady=10).pack()
+                return
+
+            # Crear un frame para el Treeview y la Scrollbar
+            frame = ttk.Frame(the_show)
+            frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+            # Crear Scrollbar vertical
+            scrollbar_y = ttk.Scrollbar(frame, orient='vertical')
+            scrollbar_y.pack(side='right', fill='y')
+
+            # Crear Treeview
+            tree = ttk.Treeview(frame, columns=columns, show='headings', yscrollcommand=scrollbar_y.set)
+
+            # Configurar las columnas del Treeview
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=100, anchor='w') # Ajusta el ancho según necesites
+
+            # Insertar los datos en el Treeview
+            for record in records:
+                # Mostrar 'NULL' si el valor es None
+                formatted_record = tuple(['NULL' if value is None else value for value in record])
+                tree.insert('', END, values=formatted_record)
+
+            # Configurar la Scrollbar para que funcione con el Treeview
+            scrollbar_y.config(command=tree.yview)
+
+            # Empaquetar el Treeview
+            tree.pack(side='left', fill='both', expand=True)
 
         except Exception as ex:
-            messagebox.showerror("ERROR", f"Error al realizar la consulta: \n{ex}")
-
-    ventana_input = Toplevel()
-    ventana_input.title("Ingrese ID de Zona")
-    ventana_input.iconbitmap("codigos/assets/BDICON.ico")
-
-    Label(ventana_input, text="Ingrese el ID de la Zona:").pack(padx=10, pady=10)
-    zona_id_entry = Entry(ventana_input)
-    zona_id_entry.pack(padx=10, pady=5)
-
-    def obtener_id():
+            messagebox.showerror("ERROR", f"Error al mostrar la tabla '{table_name}': \n{ex}")
+            
+def consultar_zona_con_conteo(mydb):
+    def mostrar_detalles(nombre_zona):
         try:
-            zona_id = int(zona_id_entry.get())
-            ventana_input.destroy()
-            mostrar_resultado(zona_id)
-        except ValueError:
-            messagebox.showerror("ERROR", "Por favor, ingrese un ID de Zona válido (número entero).")
+            cursor = mydb.cursor()
+            cursor.execute("""
+                SELECT COUNT(b.ZonaID) AS TotalVisitas
+                FROM Boletos b
+                JOIN Zonas z ON b.ZonaID = z.ZonaID
+                WHERE z.Nombre_Zona = ?
+            """, (nombre_zona,))
+            resultado_conteo = cursor.fetchone()
+            total_visitas = resultado_conteo[0] if resultado_conteo else 0
 
-    Button(ventana_input, text="Consultar", command=obtener_id).pack(pady=10)
+            cursor.execute("""
+                SELECT DISTINCT p.Nombre, p.Apellido
+                FROM Boletos b
+                JOIN Zonas z ON b.ZonaID = z.ZonaID
+                JOIN Clientes c ON b.ClienteID = c.ClienteID
+                JOIN Personas p ON c.PersonaID = p.PersonaID
+                WHERE z.Nombre_Zona = ?
+                ORDER BY p.Apellido, p.Nombre
+            """, (nombre_zona,))
+            clientes_visitantes = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT DISTINCT b.Fecha_visita
+                FROM Boletos b
+                JOIN Zonas z ON b.ZonaID = z.ZonaID
+                WHERE z.Nombre_Zona = ?
+                ORDER BY b.Fecha_visita
+            """, (nombre_zona,))
+            fechas_visita = [row[0] for row in cursor.fetchall()]
+
+            detalles_ventana = Toplevel()
+            detalles_ventana.title(f"Detalles de Visitas: {nombre_zona}")
+            detalles_ventana.iconbitmap("codigos/assets/BDICON.ico")
+
+            Label(detalles_ventana, text=f"Detalles de visitas para la zona '{nombre_zona}':", font=("Arial", 12, "bold")).pack(pady=5)
+            Label(detalles_ventana, text=f"Total de visitas: {total_visitas}").pack(padx=10, pady=2, anchor="w")
+
+            if clientes_visitantes:
+                Label(detalles_ventana, text="Clientes visitantes:", font=("Arial", 10, "italic")).pack(padx=10, pady=2, anchor="w")
+                for nombre, apellido in clientes_visitantes:
+                    Label(detalles_ventana, text=f"- {nombre} {apellido}").pack(padx=20, pady=1, anchor="w")
+            else:
+                Label(detalles_ventana, text="Clientes visitantes: Ninguno").pack(padx=10, pady=2, anchor="w")
+
+            if fechas_visita:
+                Label(detalles_ventana, text="Fechas de visita:", font=("Arial", 10, "italic")).pack(padx=10, pady=2, anchor="w")
+                for fecha in fechas_visita:
+                    Label(detalles_ventana, text=f"- {fecha}").pack(padx=20, pady=1, anchor="w")
+            else:
+                Label(detalles_ventana, text="Fechas de visita: Ninguna").pack(padx=10, pady=2, anchor="w")
+
+        except pyodbc.Error as ex:
+            messagebox.showerror("ERROR", f"Error al consultar la base de datos: \n{ex}")
+        except Exception as ex:
+            messagebox.showerror("ERROR", f"Error general: \n{ex}")
+
+    def seleccionar_zona():
+        try:
+            zona_seleccionada_index = lista_zonas.curselection()
+            if zona_seleccionada_index:
+                zona_seleccionada = lista_zonas.get(zona_seleccionada_index[0])
+                ventana_seleccion_zona.destroy()
+                mostrar_detalles(zona_seleccionada)
+            else:
+                messagebox.showinfo("Selección", "Por favor, seleccione una zona de la lista.")
+        except TclError:
+            messagebox.showerror("Error", "No se ha seleccionado ninguna zona.")
+
+
+    try:
+        cursor = mydb.cursor()
+        cursor.execute("SELECT Nombre_Zona FROM Zonas ORDER BY Nombre_Zona")
+        zonas = [row[0] for row in cursor.fetchall()]
+
+        if not zonas:
+            messagebox.showinfo("Consulta de Zona", "No hay zonas registradas en la base de datos.")
+            return
+
+        ventana_seleccion_zona = Toplevel()
+        ventana_seleccion_zona.title("Seleccionar Zona")
+        ventana_seleccion_zona.iconbitmap("codigos/assets/BDICON.ico")
+
+        Label(ventana_seleccion_zona, text="Seleccione una zona para ver el conteo y detalles de las visitas:", font=("Arial", 10)).pack(padx=10, pady=10)
+
+        scrollbar = Scrollbar(ventana_seleccion_zona)
+        scrollbar.pack(side=RIGHT, fill=Y)
+
+        lista_zonas = Listbox(ventana_seleccion_zona, yscrollcommand=scrollbar.set, height=10, width=30)
+        for zona in zonas:
+            lista_zonas.insert(END, zona)
+        lista_zonas.pack(padx=10, pady=10)
+
+        scrollbar.config(command=lista_zonas.yview)
+
+        boton_seleccionar = Button(ventana_seleccion_zona, text="Ver Conteo y Detalles", command=seleccionar_zona)
+        boton_seleccionar.pack(pady=10)
+
+    except pyodbc.Error as ex:
+        messagebox.showerror("ERROR", f"Error al obtener la lista de zonas: \n{ex}")
+    except Exception as ex:
+        messagebox.showerror("ERROR", f"Error general: \n{ex}")
+
 def consultar_cliente_boletos_gastado(mydb):
-    def mostrar_resultados(nombre, apellido):
+    def mostrar_gasto(nombre_cliente, apellido_cliente):
         try:
             cursor = mydb.cursor()
             query = """
-            SELECT
-                p.Nombre,
-                p.Apellido,
-                COUNT(b.ClienteID) AS Total_Boletos,
-                SUM(b.Precio) AS Total_Gastado
-            FROM Clientes cli
-            JOIN Personas p ON cli.PersonaID = p.PersonaID
-            JOIN Boletos b ON cli.ClienteID = b.ClienteID
-            WHERE p.Nombre LIKE ? OR p.Apellido LIKE ?
-            GROUP BY p.Nombre, p.Apellido;
+                SELECT
+                    per.Nombre,
+                    per.Apellido,
+                    f.NIT,
+                    COUNT(b.FacturaID) AS CantidadBoletos,
+                    SUM(b.Precio) AS TotalGastado
+                FROM Clientes c
+                JOIN Personas per ON c.PersonaID = per.PersonaID
+                LEFT JOIN Boletos b ON c.ClienteID = b.ClienteID
+                LEFT JOIN Facturas f ON b.FacturaID = f.FacturaID
+                WHERE per.Nombre LIKE ? AND per.Apellido LIKE ?
+                GROUP BY per.Nombre, per.Apellido, f.NIT
+                ORDER BY per.Apellido, per.Nombre
             """
-            nombre_param = f"{nombre}%" if nombre else "%"
-            apellido_param = f"{apellido}%" if apellido else "%"
+            nombre_param = f"{nombre_cliente}%" if nombre_cliente else "%"
+            apellido_param = f"{apellido_cliente}%" if apellido_cliente else "%"
             cursor.execute(query, (nombre_param, apellido_param))
             resultados = cursor.fetchall()
 
-            resultados_ventana = Toplevel()
-            resultados_ventana.title("Consulta de Clientes")
-            resultados_ventana.iconbitmap("codigos/assets/BDICON.ico")
-
             if resultados:
-                Label(resultados_ventana, text="Resultados de la búsqueda:", font=("Arial", 12, "bold")).pack(pady=5)
-                for resultado in resultados:
-                    Label(resultados_ventana, text=f"Nombre: {resultado[0]}").pack(pady=2)
-                    Label(resultados_ventana, text=f"Apellido: {resultado[1]}").pack(pady=2)
-                    Label(resultados_ventana, text=f"Total Boletos: {resultado[2]}").pack(pady=2)
-                    Label(resultados_ventana, text=f"Total Gastado: {resultado[3]}").pack(pady=2)
-                    Label(resultados_ventana, text="-" * 20).pack()
+                resultados_ventana = Toplevel()
+                resultados_ventana.title("Clientes - Boletos Comprados y Gastado")
+                resultados_ventana.iconbitmap("codigos/assets/BDICON.ico")
+
+                canvas = Canvas(resultados_ventana)
+                scrollbar = Scrollbar(resultados_ventana, orient="vertical", command=canvas.yview)
+                scrollable_frame = Frame(canvas)
+
+                scrollable_frame.bind(
+                    "<Configure>",
+                    lambda e: canvas.configure(
+                        scrollregion=canvas.bbox("all")
+                    )
+                )
+
+                canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+                canvas.configure(yscrollcommand=scrollbar.set)
+
+                canvas.pack(side="left", fill="both", expand=True)
+                scrollbar.pack(side="right", fill="y")
+
+                Label(scrollable_frame, text="Resultados de la búsqueda:", font=("Arial", 12, "bold")).pack(pady=5)
+                for row in resultados:
+                    nombre, apellido, nit, cantidad, total_gastado = row
+                    Label(scrollable_frame, text=f"Nombre: {nombre} {apellido}").pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text=f"NIT: {nit if nit else 'Sin NIT asociado'}").pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text=f"Boletos Comprados: {cantidad}").pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text=f"Total Gastado: {total_gastado:.2f}").pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text="-" * 30).pack(pady=5)
             else:
-                mensaje = "No se encontraron clientes con el nombre o apellido especificado."
-                Label(resultados_ventana, text=mensaje).pack(pady=10)
+                messagebox.showinfo("Consulta", "No se encontraron clientes con ese nombre.")
 
+        except pyodbc.Error as ex:
+            messagebox.showerror("ERROR", f"Error al consultar la base de datos: \n{ex}")
         except Exception as ex:
-            messagebox.showerror("ERROR", f"Error al realizar la consulta: \n{ex}")
+            messagebox.showerror("ERROR", f"Error general: \n{ex}")
 
-    ventana_input = Toplevel()
-    ventana_input.title("Ingrese Nombre y/o Apellido")
-    ventana_input.iconbitmap("codigos/assets/BDICON.ico")
+    ventana_buscar = Toplevel()
+    ventana_buscar.title("Buscar Cliente")
+    ventana_buscar.iconbitmap("codigos/assets/BDICON.ico")
 
-    Label(ventana_input, text="Ingrese el Nombre (opcional):").pack(padx=10, pady=5)
-    nombre_entry = Entry(ventana_input)
+    Label(ventana_buscar, text="Nombre del Cliente:", font=("Arial", 10)).pack(padx=10, pady=10)
+    nombre_entry = Entry(ventana_buscar)
     nombre_entry.pack(padx=10, pady=5)
 
-    Label(ventana_input, text="Ingrese el Apellido (opcional):").pack(padx=10, pady=5)
-    apellido_entry = Entry(ventana_input)
+    Label(ventana_buscar, text="Apellido del Cliente:", font=("Arial", 10)).pack(padx=10, pady=10)
+    apellido_entry = Entry(ventana_buscar)
     apellido_entry.pack(padx=10, pady=5)
 
-    def realizar_consulta():
-        nombre = nombre_entry.get().strip()
-        apellido = apellido_entry.get().strip()
-        ventana_input.destroy()
-        mostrar_resultados(nombre, apellido)
-
-    Button(ventana_input, text="Buscar", command=realizar_consulta).pack(pady=10)
+    buscar_button = Button(ventana_buscar, text="Buscar", command=lambda: mostrar_gasto(nombre_entry.get().strip(), apellido_entry.get().strip()))
+    buscar_button.pack(pady=10)
 
 def mostrar_total_visitas_por_zona(mydb):
     try:
@@ -301,38 +408,38 @@ def mostrar_facturas_por_cliente(mydb):
     Button(ventana_input, text="Buscar Facturas", command=realizar_consulta).pack(pady=10)
 
 def mostrar_historial_boletos_cliente(mydb):
-    def mostrar_resultados(cliente_id):
+    def mostrar_historial(nombre_cliente, apellido_cliente):
         try:
             cursor = mydb.cursor()
             query = """
-            WITH HistorialBoletos AS (
                 SELECT
+                    f.FacturaID,
+                    f.Nit,
+                    per.Nombre AS NombreCliente,
+                    per.Apellido AS ApellidoCliente,
                     b.Precio,
                     z.Nombre_Zona,
-                    f.FacturaID
+                    b.Tipo_boleto,
+                    b.Fecha_visita
                 FROM Boletos b
                 JOIN Facturas f ON b.FacturaID = f.FacturaID
-                JOIN Clientes cli ON b.ClienteID = cli.ClienteID
+                JOIN Clientes c ON b.ClienteID = c.ClienteID
+                JOIN Personas per ON c.PersonaID = per.PersonaID
                 JOIN Zonas z ON b.ZonaID = z.ZonaID
-                WHERE cli.ClienteID = ?
-            )
-            SELECT
-                FacturaID,
-                Precio,
-                Nombre_Zona,
-                COUNT(*) OVER() AS Total_Boletos_Cliente
-            FROM HistorialBoletos;
+                WHERE per.Nombre LIKE ? AND per.Apellido LIKE ?
+                ORDER BY f.FacturaID, b.Fecha_visita
             """
-            cursor.execute(query, (cliente_id,))
-            resultados = cursor.fetchall()
+            nombre_param = f"{nombre_cliente}%" if nombre_cliente else "%"
+            apellido_param = f"{apellido_cliente}%" if apellido_cliente else "%"
+            cursor.execute(query, (nombre_param, apellido_param))
+            historial = cursor.fetchall()
 
-            resultados_ventana = Toplevel()
-            resultados_ventana.title(f"Historial de Boletos del Cliente {cliente_id}")
-            resultados_ventana.iconbitmap("codigos/assets/BDICON.ico")
+            historial_ventana = Toplevel()
+            historial_ventana.title("Historial de Boletos del Cliente")
+            historial_ventana.iconbitmap("codigos/assets/BDICON.ico")
 
-            # Crear Canvas y Scrollbar
-            canvas = Canvas(resultados_ventana)
-            scrollbar = Scrollbar(resultados_ventana, orient="vertical", command=canvas.yview)
+            canvas = Canvas(historial_ventana)
+            scrollbar = Scrollbar(historial_ventana, orient="vertical", command=canvas.yview)
             scrollable_frame = Frame(canvas)
 
             scrollable_frame.bind(
@@ -345,45 +452,62 @@ def mostrar_historial_boletos_cliente(mydb):
             canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
             canvas.configure(yscrollcommand=scrollbar.set)
 
-            # Colocar el Canvas y la Scrollbar en la ventana
             canvas.pack(side="left", fill="both", expand=True)
             scrollbar.pack(side="right", fill="y")
 
-            if resultados:
-                total_boletos = resultados[0][3] if resultados else 0
-                Label(scrollable_frame, text=f"Historial de Boletos - Cliente ID: {cliente_id}", font=("Arial", 12, "bold")).pack(pady=5)
-                Label(scrollable_frame, text=f"Total de Boletos Comprados: {total_boletos}", font=("Arial", 10, "italic")).pack(pady=5)
-                Label(scrollable_frame, text=" ".join((str(i) for i in range(5)))).pack()
-                for resultado in resultados:
-                    factura_id, precio, nombre_zona, _ = resultado
-                    Label(scrollable_frame, text=f"Factura ID: {factura_id}").pack(pady=2)
-                    Label(scrollable_frame, text=f"  Precio: {precio}").pack(padx=10)
-                    Label(scrollable_frame, text=f"  Zona Visitada: {nombre_zona}").pack(padx=10)
+            if historial:
+                historial_por_factura = {}
+                for row in historial:
+                    factura_id, nit, nombre_cli, apellido_cli, precio, nombre_zona, tipo_boleto, fecha_visita = row
+                    if factura_id not in historial_por_factura:
+                        historial_por_factura[factura_id] = {
+                            'nit': nit,
+                            'nombre_cliente': f"{nombre_cli} {apellido_cli}",
+                            'boletos': []
+                        }
+                    historial_por_factura[factura_id]['boletos'].append({
+                        'precio': precio,
+                        'nombre_zona': nombre_zona,
+                        'tipo_boleto': tipo_boleto,
+                        'fecha_visita': fecha_visita
+                    })
+
+                Label(scrollable_frame, text="Historial de boletos por factura:", font=("Arial", 12, "bold")).pack(pady=5)
+                for factura_id, detalles_factura in historial_por_factura.items():
+                    Label(scrollable_frame, text=f"Cliente: {detalles_factura['nombre_cliente']}", font=("Arial", 10, "italic")).pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text=f"NIT: {detalles_factura['nit']}", font=("Arial", 10, "italic")).pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text=f"Factura ID: {factura_id}", font=("Arial", 11, "bold")).pack(padx=10, pady=2, anchor="w")
+                    Label(scrollable_frame, text="-" * 30).pack(pady=2)
+                    for boleto in detalles_factura['boletos']:
+                        Label(scrollable_frame, text=f"  Precio: {boleto['precio']}").pack(padx=20, pady=1, anchor="w")
+                        Label(scrollable_frame, text=f"  Zona: {boleto['nombre_zona']}").pack(padx=20, pady=1, anchor="w")
+                        Label(scrollable_frame, text=f"  Tipo de Boleto: {boleto['tipo_boleto']}").pack(padx=20, pady=1, anchor="w")
+                        Label(scrollable_frame, text=f"  Fecha de Visita: {boleto['fecha_visita']}").pack(padx=20, pady=1, anchor="w")
+                    Label(scrollable_frame, text="-" * 30).pack(pady=5)
+
             else:
-                mensaje = f"No se encontraron boletos para el Cliente ID: {cliente_id}"
-                Label(scrollable_frame, text=mensaje).pack(pady=10)
+                Label(scrollable_frame, text=f"No se encontró historial de boletos para: {nombre_cliente} {apellido_cliente}").pack(pady=10)
 
+        except pyodbc.Error as ex:
+            messagebox.showerror("ERROR", f"Error al consultar la base de datos: \n{ex}")
         except Exception as ex:
-            messagebox.showerror("ERROR", f"Error al realizar la consulta: \n{ex}")
+            messagebox.showerror("ERROR", f"Error general: \n{ex}")
 
-    ventana_input = Toplevel()
-    ventana_input.title("Ingrese Cliente ID")
-    ventana_input.iconbitmap("codigos/assets/BDICON.ico")
+    ventana_buscar = Toplevel()
+    ventana_buscar.title("Buscar Historial por Nombre")
+    ventana_buscar.iconbitmap("codigos/assets/BDICON.ico")
 
-    Label(ventana_input, text="Ingrese el ID del Cliente:").pack(padx=10, pady=10)
-    cliente_id_entry = Entry(ventana_input)
-    cliente_id_entry.pack(padx=10, pady=5)
+    Label(ventana_buscar, text="Nombre del Cliente:", font=("Arial", 10)).pack(padx=10, pady=10)
+    nombre_entry = Entry(ventana_buscar)
+    nombre_entry.pack(padx=10, pady=5)
 
-    def realizar_consulta():
-        try:
-            cliente_id = int(cliente_id_entry.get())
-            ventana_input.destroy()
-            mostrar_resultados(cliente_id)
-        except ValueError:
-            messagebox.showerror("ERROR", "Por favor, ingrese un ID de Cliente válido (número entero).")
+    Label(ventana_buscar, text="Apellido del Cliente:", font=("Arial", 10)).pack(padx=10, pady=10)
+    apellido_entry = Entry(ventana_buscar)
+    apellido_entry.pack(padx=10, pady=5)
 
-    Button(ventana_input, text="Mostrar Historial", command=realizar_consulta).pack(pady=10)
-    
+    buscar_button = Button(ventana_buscar, text="Buscar Historial", command=lambda: mostrar_historial(nombre_entry.get().strip(), apellido_entry.get().strip()))
+    buscar_button.pack(pady=10)
+
 def mostrar_vista_reporte_ventas(mydb):
     try:
         cursor = mydb.cursor()
@@ -587,3 +711,55 @@ def mostrar_boletos_vendedor(mydb):
 
     Button(ventana_input, text="Buscar", command=realizar_consulta).pack(pady=10)
 
+def mostrar_tabla_auditoria_empleados(mydb):
+    try:
+        cursor = mydb.cursor()
+        cursor.execute("SELECT ID_Auditoria, EmpleadoID, Cambio, DetalleCambio, Fecha, Usuario FROM Auditoria_Empleados")
+        registros_auditoria = cursor.fetchall()
+
+        if not registros_auditoria:
+            messagebox.showinfo("Auditoría de Empleados", "La tabla Auditoria_Empleados está vacía.")
+            return
+
+        ventana_auditoria = Toplevel()
+        ventana_auditoria.title("Tabla Auditoria_Empleados")
+        ventana_auditoria.iconbitmap("codigos/assets/BDICON.ico")
+
+        tree = ttk.Treeview(ventana_auditoria, columns=("ID_Auditoria", "EmpleadoID", "Cambio", "DetalleCambio", "Fecha", "Usuario"), show="headings")
+
+        # Definir encabezados de las columnas
+        tree.heading("ID_Auditoria", text="ID Auditoría")
+        tree.heading("EmpleadoID", text="Empleado ID")
+        tree.heading("Cambio", text="Cambio")
+        tree.heading("DetalleCambio", text="Detalle del Cambio")
+        tree.heading("Fecha", text="Fecha")
+        tree.heading("Usuario", text="Usuario")
+
+        # Establecer un ancho fijo para cada columna
+        ancho_fijo = 150
+        tree.column("ID_Auditoria", width=ancho_fijo)
+        tree.column("EmpleadoID", width=ancho_fijo)
+        tree.column("Cambio", width=ancho_fijo)
+        tree.column("DetalleCambio", width=ancho_fijo)
+        tree.column("Fecha", width=ancho_fijo)
+        tree.column("Usuario", width=ancho_fijo)
+
+        # Insertar los datos en la tabla
+        for registro in registros_auditoria:
+            tree.insert("", END, values=registro)
+
+        # Agregar scrollbars si es necesario
+        scrollbar_vertical = Scrollbar(ventana_auditoria, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar_vertical.set)
+        scrollbar_vertical.pack(side=RIGHT, fill=Y)
+
+        scrollbar_horizontal = Scrollbar(ventana_auditoria, orient="horizontal", command=tree.xview)
+        tree.configure(xscrollcommand=scrollbar_horizontal.set)
+        scrollbar_horizontal.pack(side=BOTTOM, fill=X)
+
+        tree.pack(fill="both", expand=True)
+
+    except pyodbc.Error as ex:
+        messagebox.showerror("ERROR", f"Error al consultar la tabla Auditoria_Empleados: \n{ex}")
+    except Exception as ex:
+        messagebox.showerror("ERROR", f"Error general: \n{ex}")

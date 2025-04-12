@@ -20,7 +20,7 @@ def menu_inicio():
     titulo_label.pack(side="top")
     titulo_label.config(cursor="hand2")
     padoru = PhotoImage(file="codigos/assets/padoru.png")
-    sqls = Button(main_menu, text="SQL Server", font=("Arial", 30), width=0, height=2,command=abrir_sqls)
+    sqls = Button(main_menu, text="INGRESAR", font=("Arial", 30), width=0, height=2,command=abrir_sqls)
     sqls.pack(side="top", padx=10, pady=50)
     sqls.config(cursor="hand2")
     #mysql = Button(main_menu, text="My sql", font=("Arial", 30), width=10, height=2,command=abrir_mysql)
