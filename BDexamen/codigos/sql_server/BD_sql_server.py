@@ -62,3 +62,6 @@ def registrar_venta():
 def consultar_boletos_vendedor():
     playsound("codigos/assets/Select.wav")
     show_sqls.mostrar_boletos_vendedor(mydb)
+def mostrar_tabla_auditoria_empleados():
+    playsound("codigos/assets/Select.wav")
+    show_sqls.mostrar_tabla_auditoria_empleados(mydb)

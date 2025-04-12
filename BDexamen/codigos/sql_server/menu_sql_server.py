@@ -1,6 +1,37 @@
 from tkinter import *
-import codigos.sql_server.BD_sql_server as BD_sql_server 
+import codigos.sql_server.BD_sql_server as BD_sql_server
 import codigos.musica as musica
+
+def abrir_menu_rol(usuario_rol):
+    menu_rol_ventana = Toplevel()
+    menu_rol_ventana.title(f"Menú de {usuario_rol}")
+    menu_rol_ventana.iconbitmap("codigos/assets/BDICON.ico")
+    menu_rol_ventana.geometry("600x400")
+    menu_rol_ventana.config(bg="#ADD8E6") # Un color de fondo diferente
+
+    if usuario_rol == "Gerente":
+        consultar_zona_btn = Button(menu_rol_ventana, text="Consultar Zona", font=("Arial", 20), command=BD_sql_server.consultar_zona)
+        consultar_zona_btn.pack(pady=20)
+        consultar_cliente_btn = Button(menu_rol_ventana, text="Consultar Cliente", font=("Arial", 20), command=BD_sql_server.consultar_cliente)
+        consultar_cliente_btn.pack(pady=20)
+        mostrar_visitas_btn = Button(menu_rol_ventana, text="Visitas por Zona", font=("Arial", 20), command=BD_sql_server.mostrar_visitas_por_zona)
+        mostrar_visitas_btn.pack(pady=20)
+        mostrar_facturas_btn = Button(menu_rol_ventana, text="Facturas por Cliente", font=("Arial", 20), command=BD_sql_server.mostrar_facturas_cliente)
+        mostrar_facturas_btn.pack(pady=20)
+        mostrar_historial_btn = Button(menu_rol_ventana, text="Historial Cliente", font=("Arial", 20), command=BD_sql_server.mostrar_historial_cliente)
+        mostrar_historial_btn.pack(pady=20)
+        mostrar_reporte_btn = Button(menu_rol_ventana, text="Reporte de Ventas", font=("Arial", 20), command=BD_sql_server.mostrar_reporte_ventas)
+        mostrar_reporte_btn.pack(pady=20)
+        buscar_boletos_proc_btn = Button(menu_rol_ventana, text="Buscar Boletos", font=("Arial", 20), command=BD_sql_server.buscar_boletos_procedimiento)
+        buscar_boletos_proc_btn.pack(pady=20)
+        mostrar_auditoria_btn = Button(menu_rol_ventana, text="Mostrar Auditoría", font=("Arial", 20), command=BD_sql_server.mostrar_tabla_auditoria_empleados)
+        mostrar_auditoria_btn.pack(pady=20) 
+    elif usuario_rol == "Vendedor":
+        registrar_venta_btn = Button(menu_rol_ventana, text="Registrar Venta", font=("Arial", 20), command=BD_sql_server.registrar_venta)
+        registrar_venta_btn.pack(pady=50)
+        consultar_boletos_btn = Button(menu_rol_ventana, text="Consultar Boletos", font=("Arial", 20), command=BD_sql_server.consultar_boletos_vendedor)
+        consultar_boletos_btn.pack(pady=50)
+
 def sqls(usuario):
     main = Tk()
     musica.music("codigos/assets/sqlserver.ogg")
@@ -18,36 +49,32 @@ def sqls(usuario):
         eliminar = Button(main,text="Eliminar", font=("Arial", 30), width=0, height=2, command=BD_sql_server.delete)
         eliminar.grid(row="2",column="0", padx=110, pady=100)
         mostrar = Button(main, text="Mostrar", font=("Arial", 30), width=0, height=2, command=BD_sql_server.show)
-        mostrar.grid(row="2",column="2", padx=110, pady=50)
+        mostrar.grid(row="2",column="1", padx=110, pady=50)
+        consultar_zona_btn_dba = Button(main, text="Menú Registros", font=("Arial", 30), width=0, height=2, command=lambda: abrir_menu_rol("Gerente"))
+        consultar_zona_btn_dba.grid(row="1", column="0", pady=50)
+        consultar_cliente_btn_dba = Button(main, text="Menú Ventas", font=("Arial", 30), width=0, height=2, command=lambda: abrir_menu_rol("Vendedor"))
+        consultar_cliente_btn_dba.grid(row="1", column="2", pady=50)
     elif(usuario == "Vendedor"):
         registrar_venta_btn = Button(main, text="Registrar Venta", font=("Arial", 30), width=0, height=2, command=BD_sql_server.registrar_venta)
-        registrar_venta_btn.grid(row="0", column="2", padx=110, pady=50)
+        registrar_venta_btn.grid(row="0", column="1", pady=50)
         consultar_boletos_btn = Button(main, text="Consultar Boletos", font=("Arial", 30), width=0, height=2, command=BD_sql_server.consultar_boletos_vendedor)
-        consultar_boletos_btn.grid(row="1", column="2",padx=110 , pady=50)
+        consultar_boletos_btn.grid(row="1", column="1", pady=50)
     elif(usuario == "Gerente"):
-        # Opción de consulta por zona para el Gerente
         consultar_zona_btn = Button(main, text="Consultar Zona", font=("Arial", 30), width=0, height=2, command=BD_sql_server.consultar_zona)
-        consultar_zona_btn.grid(row="0", column="1", pady=50) 
-        # Opción de consulta de clientes para el Gerente
+        consultar_zona_btn.grid(row="0", column="0", pady=50)
         consultar_cliente_btn = Button(main, text="Consultar Cliente", font=("Arial", 30), width=0, height=2, command=BD_sql_server.consultar_cliente)
-        consultar_cliente_btn.grid(row="0", column="2", pady=50)
-        # Opción para mostrar el total de visitas por zona para el Gerente
+        consultar_cliente_btn.grid(row="0", column="1", pady=50)
         mostrar_visitas_btn = Button(main, text="Visitas por Zona", font=("Arial", 30), width=0, height=2, command=BD_sql_server.mostrar_visitas_por_zona)
-        mostrar_visitas_btn.grid(row="0", column="3", pady=50)
-        #Mostrar todos los elementos de la tabla
-        mostrar = Button(main, text="Mostrar", font=("Arial", 30), width=0, height=2, command=BD_sql_server.show)
-        mostrar.grid(row="2",column="3", padx=110, pady=50)
-        # Opción para mostrar facturas por cliente para el Gerente
+        mostrar_visitas_btn.grid(row="0", column="2", pady=50)
         mostrar_facturas_btn = Button(main, text="Facturas por Cliente", font=("Arial", 30), width=0, height=2, command=BD_sql_server.mostrar_facturas_cliente)
-        mostrar_facturas_btn.grid(row="3", column="1", pady=50)
-        # Opción para mostrar el historial de boletos del cliente para el Gerente
+        mostrar_facturas_btn.grid(row="1", column="0", pady=50)
         mostrar_historial_btn = Button(main, text="Historial Cliente", font=("Arial", 30), width=0, height=2, command=BD_sql_server.mostrar_historial_cliente)
-        mostrar_historial_btn.grid(row="3", column="2", pady=50)
-        # Opción para mostrar el reporte de ventas para el Gerente
+        mostrar_historial_btn.grid(row="1", column="1", pady=50)
         mostrar_reporte_btn = Button(main, text="Reporte de Ventas", font=("Arial", 30), width=0, height=2, command=BD_sql_server.mostrar_reporte_ventas)
-        mostrar_reporte_btn.grid(row="3", column="3", pady=50)
-        # Opción para buscar boletos con el stored procedure para el Gerente
-        buscar_boletos_proc_btn = Button(main, text="Buscar Boletos (SP)", font=("Arial", 30), width=0, height=2, command=BD_sql_server.buscar_boletos_procedimiento)
+        mostrar_reporte_btn.grid(row="1", column="2", pady=50)
+        buscar_boletos_proc_btn = Button(main, text="Buscar Boletos", font=("Arial", 30), width=0, height=2, command=BD_sql_server.buscar_boletos_procedimiento)
         buscar_boletos_proc_btn.grid(row="2", column="1", pady=50)
+        mostrar_auditoria_btn = Button(main, text="Mostrar Auditoría", font=("Arial", 30), width=0, height=2, command=BD_sql_server.mostrar_tabla_auditoria_empleados)
+        mostrar_auditoria_btn.grid(row="2", column="0", pady=50) 
     main.mainloop()
     musica.detenermusica()
